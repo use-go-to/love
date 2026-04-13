@@ -21,6 +21,8 @@ const CHANNEL_THEMES = [
   { icon: '❓', label: 'Autre' },
 ]
 
+const TABS = ['chat', 'channels', 'moments']
+
 // ── Heart particles ──
 function HeartParticle({ x, y, size, delay, color }) {
   return (
@@ -80,7 +82,6 @@ function LoginScreen({ onSelect }) {
   )
 }
 
-// ── Confirm dialog ──
 function ConfirmDialog({ message, onConfirm, onCancel }) {
   return (
     <div className="dialog-overlay">
@@ -95,12 +96,10 @@ function ConfirmDialog({ message, onConfirm, onCancel }) {
   )
 }
 
-// ── Create channel modal ──
 function CreateChannelModal({ onClose, onCreate, generating }) {
   const [name, setName] = useState('')
   const [theme, setTheme] = useState(CHANNEL_THEMES[0])
   const [showThemes, setShowThemes] = useState(false)
-
   return (
     <div className="dialog-overlay" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
@@ -129,8 +128,7 @@ function CreateChannelModal({ onClose, onCreate, generating }) {
         <p className="modal-hint">✨ Une problématique IA sera générée automatiquement</p>
         <div className="modal-actions">
           <button className="dialog-cancel" onClick={onClose}>Annuler</button>
-          <button className="dialog-confirm" disabled={!name.trim() || generating}
-            onClick={()=>onCreate(name.trim(), theme)}>
+          <button className="dialog-confirm" disabled={!name.trim() || generating} onClick={()=>onCreate(name.trim(), theme)}>
             {generating ? '✨ Génération…' : 'Créer'}
           </button>
         </div>
@@ -139,42 +137,134 @@ function CreateChannelModal({ onClose, onCreate, generating }) {
   )
 }
 
-// ── Float layer ──
 function FloatLayer({ floats }) {
-  return <>{floats.map(f=>(
-    <div key={f.id} className="float-emoji" style={{left:f.x+'%'}}>{f.char}</div>
-  ))}</>
+  return <>{floats.map(f=>(<div key={f.id} className="float-emoji" style={{left:f.x+'%'}}>{f.char}</div>))}</>
+}
+
+// ── Avatar ──
+function Avatar({ name, size=28 }) {
+  const isDavid = name === DAVID
+  return (
+    <div style={{
+      width:size, height:size, borderRadius:'50%', flexShrink:0,
+      background: isDavid?'linear-gradient(135deg,#1a3a5c,#0d2238)':'linear-gradient(135deg,#3a1a2e,#220d1e)',
+      color: isDavid?'#6eb5c9':'#f4a0c0',
+      border: isDavid?'1px solid rgba(110,181,201,0.35)':'1px solid rgba(244,160,192,0.35)',
+      display:'flex', alignItems:'center', justifyContent:'center',
+      fontSize: size*0.42+'px',
+      fontFamily:"'Cormorant Garamond', serif",
+      marginTop:2
+    }}>
+      {isDavid?'D':'Y'}
+    </div>
+  )
+}
+
+// ── Day separator ──
+function DaySep({ date }) {
+  const d = new Date(date)
+  const now = new Date()
+  const diff = Math.floor((now - d) / 86400000)
+  let label = diff===0 ? "Aujourd'hui" : diff===1 ? 'Hier' : d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})
+  return <div className="day-sep"><span>{label}</span></div>
+}
+
+// ── Rich message list ──
+function MessageList({ messages, user, endRef }) {
+  const isMe = s => s === user
+  const fmt = ts => new Date(ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})
+
+  const grouped = []
+  let lastDay = null
+  messages.forEach((msg,i) => {
+    const day = new Date(msg.created_at).toDateString()
+    if(day !== lastDay) { grouped.push({type:'day', date:msg.created_at, id:'day-'+i}); lastDay=day }
+    const prev = messages[i-1]
+    const next = messages[i+1]
+    const CLUSTER = 90000 // 90s
+    const samePrev = prev && prev.sender===msg.sender && new Date(msg.created_at)-new Date(prev.created_at)<CLUSTER
+    const sameNext = next && next.sender===msg.sender && new Date(next.created_at)-new Date(msg.created_at)<CLUSTER
+    grouped.push({type:'msg', msg, first:!samePrev, last:!sameNext})
+  })
+
+  return (
+    <div className="messages">
+      {messages.length===0 && (
+        <div className="empty"><div className="empty-icon">💕</div><p>Votre espace privé commence ici</p></div>
+      )}
+      {grouped.map((item,idx) => {
+        if(item.type==='day') return <DaySep key={item.id} date={item.date}/>
+        const {msg, first, last} = item
+        const mine = isMe(msg.sender)
+        return (
+          <div key={msg.id} className={`msg-row ${mine?'mine':'hers'} ${first?'first':''} ${last?'last':''}`}>
+            {!mine && (
+              <div className="avatar-slot">
+                {last ? <Avatar name={msg.sender} size={28}/> : <div style={{width:28}}/>}
+              </div>
+            )}
+            <div className="msg-col">
+              <div className={`bubble ${mine?'bubble-mine':'bubble-hers'} ${first?'bubble-first':''} ${last?'bubble-last':''}`}>
+                <p>{msg.text}</p>
+              </div>
+              {last && <span className={`meta ${mine?'meta-mine':'meta-hers'}`}>{fmt(msg.created_at)}</span>}
+            </div>
+          </div>
+        )
+      })}
+      <div ref={endRef}/>
+    </div>
+  )
 }
 
 export default function App() {
-  const [user, setUser] = useState(()=>localStorage.getItem('adeux_user')||null)
-  const [view, setView] = useState('chat') // 'chat' | 'channels' | 'moments'
-  const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
-  const [floats, setFloats] = useState([])
-  const [moments, setMoments] = useState([])
-  const [momentInput, setMomentInput] = useState('')
-  const [channels, setChannels] = useState([])
-  const [activeChannel, setActiveChannel] = useState(null) // null = list, else channel obj
+  const [user, setUser]                     = useState(()=>localStorage.getItem('adeux_user')||null)
+  const [view, setView]                     = useState('chat')
+  const [messages, setMessages]             = useState([])
+  const [input, setInput]                   = useState('')
+  const [floats, setFloats]                 = useState([])
+  const [moments, setMoments]               = useState([])
+  const [momentInput, setMomentInput]       = useState('')
+  const [channels, setChannels]             = useState([])
+  const [activeChannel, setActiveChannel]   = useState(null)
   const [channelMessages, setChannelMessages] = useState([])
-  const [channelInput, setChannelInput] = useState('')
+  const [channelInput, setChannelInput]     = useState('')
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [generatingChannel, setGeneratingChannel] = useState(false)
-  const [installPrompt, setInstallPrompt] = useState(null)
-  const [showInstall, setShowInstall] = useState(false)
-  const [emojiPicker, setEmojiPicker] = useState(false)
-  const [confirmClear, setConfirmClear] = useState(null) // 'main' | channel_id
+  const [installPrompt, setInstallPrompt]   = useState(null)
+  const [showInstall, setShowInstall]       = useState(false)
+  const [emojiPicker, setEmojiPicker]       = useState(false)
+  const [confirmClear, setConfirmClear]     = useState(null)
   const [confirmDeleteChannel, setConfirmDeleteChannel] = useState(null)
-  const messagesEndRef = useRef(null)
-  const chMsgEndRef = useRef(null)
-  const swipeRef = useRef(null)
-  const touchStartX = useRef(null)
-  const touchStartY = useRef(null)
+  const [appHeight, setAppHeight]           = useState('100dvh')
 
-  const TABS = ['chat', 'channels', 'moments']
+  const messagesEndRef = useRef(null)
+  const chMsgEndRef    = useRef(null)
+  const touchStartX    = useRef(null)
+  const touchStartY    = useRef(null)
+  const inputRef       = useRef(null)
+  const chInputRef     = useRef(null)
+  const momentInputRef = useRef(null)
+
   const tabIndex = TABS.indexOf(view)
 
-  // PWA
+  // ── Fix iOS keyboard zoom + layout jump ──
+  // Input font-size ≥16px prevents zoom; visualViewport tracks real height
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onResize = () => {
+      setAppHeight(vv.height + 'px')
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({behavior:'smooth'})
+        chMsgEndRef.current?.scrollIntoView({behavior:'smooth'})
+      }, 60)
+    }
+    vv.addEventListener('resize', onResize)
+    return () => vv.removeEventListener('resize', onResize)
+  }, [])
+
+  // ── PWA ──
   useEffect(()=>{
     const h=(e)=>{e.preventDefault();setInstallPrompt(e);setShowInstall(true)}
     window.addEventListener('beforeinstallprompt',h)
@@ -188,52 +278,35 @@ export default function App() {
     if(outcome==='accepted') setShowInstall(false)
   }
 
-  // Realtime subscriptions
+  // ── Realtime ──
   useEffect(()=>{
     if(!user) return
     loadMessages(); loadMoments(); loadChannels()
-
     const ch1=supabase.channel('msgs')
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'channel=eq.main'},p=>{
-        setMessages(prev=>[...prev,p.new])
-      }).subscribe()
-
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'channel=eq.main'},p=>setMessages(prev=>[...prev,p.new]))
+      .subscribe()
     const ch2=supabase.channel('anims')
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'animations'},p=>{
-        addFloat(p.new.type)
-      }).subscribe()
-
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'animations'},p=>addFloat(p.new.type))
+      .subscribe()
     const ch3=supabase.channel('moms')
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'moments'},p=>{
-        setMoments(prev=>[p.new,...prev])
-      })
-      .on('postgres_changes',{event:'DELETE',schema:'public',table:'moments'},p=>{
-        setMoments(prev=>prev.filter(m=>m.id!==p.old.id))
-      }).subscribe()
-
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'moments'},p=>setMoments(prev=>[p.new,...prev]))
+      .on('postgres_changes',{event:'DELETE',schema:'public',table:'moments'},p=>setMoments(prev=>prev.filter(m=>m.id!==p.old.id)))
+      .subscribe()
     const ch4=supabase.channel('channels_rt')
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'channels'},p=>{
-        setChannels(prev=>[p.new,...prev])
-      })
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'channels'},p=>setChannels(prev=>[p.new,...prev]))
       .on('postgres_changes',{event:'DELETE',schema:'public',table:'channels'},p=>{
         setChannels(prev=>prev.filter(c=>c.id!==p.old.id))
         setActiveChannel(ac=>ac?.id===p.old.id?null:ac)
       }).subscribe()
-
-    return ()=>{
-      supabase.removeChannel(ch1); supabase.removeChannel(ch2)
-      supabase.removeChannel(ch3); supabase.removeChannel(ch4)
-    }
+    return ()=>{supabase.removeChannel(ch1);supabase.removeChannel(ch2);supabase.removeChannel(ch3);supabase.removeChannel(ch4)}
   },[user])
 
-  // Subscribe to active channel messages
   useEffect(()=>{
     if(!activeChannel) return
     loadChannelMessages(activeChannel.id)
     const sub=supabase.channel('ch_msgs_'+activeChannel.id)
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`channel=eq.${activeChannel.id}`},p=>{
-        setChannelMessages(prev=>[...prev,p.new])
-      }).subscribe()
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`channel=eq.${activeChannel.id}`},p=>setChannelMessages(prev=>[...prev,p.new]))
+      .subscribe()
     return ()=>supabase.removeChannel(sub)
   },[activeChannel])
 
@@ -269,56 +342,45 @@ export default function App() {
   async function sendMessage(e) {
     e.preventDefault(); if(!input.trim()) return
     const text=input.trim(); setInput('')
+    inputRef.current?.focus()
     await supabase.from('messages').insert({text,sender:user,channel:'main'})
   }
-
   async function sendChannelMessage(e) {
     e.preventDefault(); if(!channelInput.trim()||!activeChannel) return
     const text=channelInput.trim(); setChannelInput('')
+    chInputRef.current?.focus()
     await supabase.from('messages').insert({text,sender:user,channel:activeChannel.id})
   }
-
   async function sendEmoji(emoji) {
     setEmojiPicker(false)
     for(let i=0;i<3;i++) setTimeout(()=>addFloat(emoji),i*180)
     await supabase.from('animations').insert({type:emoji,from_user:user})
   }
-
   async function createChannel(name, theme) {
     setGeneratingChannel(true)
-    const prompt = `Tu es un assistant créatif pour un couple amoureux. Génère UNE SEULE problématique courte et engageante (1 phrase, max 120 caractères) pour un canal de discussion thématique intitulé "${name}" avec le thème "${theme.label}". Réponds UNIQUEMENT avec la problématique, sans guillemets ni ponctuation finale.`
-    let problematique = ''
-    try {
-      problematique = await askGroq(prompt, name)
-    } catch {
-      problematique = `Explorons ensemble le thème : ${name}`
-    }
-    await supabase.from('channels').insert({
-      name, theme_icon: theme.icon, theme_label: theme.label,
-      problematique: problematique.trim(), created_by: user
-    })
-    setGeneratingChannel(false)
-    setShowCreateChannel(false)
+    const prompt=`Tu es un assistant créatif pour un couple amoureux. Génère UNE SEULE problématique courte et engageante (1 phrase, max 120 caractères) pour un canal de discussion thématique intitulé "${name}" avec le thème "${theme.label}". Réponds UNIQUEMENT avec la problématique, sans guillemets ni ponctuation finale.`
+    let problematique=''
+    try{problematique=await askGroq(prompt,name)}catch{problematique=`Explorons ensemble le thème : ${name}`}
+    await supabase.from('channels').insert({name,theme_icon:theme.icon,theme_label:theme.label,problematique:problematique.trim(),created_by:user})
+    setGeneratingChannel(false); setShowCreateChannel(false)
   }
-
   async function deleteChannel(id) {
-    await supabase.from('messages').delete().eq('channel', id)
-    await supabase.from('channels').delete().eq('id', id)
+    await supabase.from('messages').delete().eq('channel',id)
+    await supabase.from('channels').delete().eq('id',id)
     setChannels(prev=>prev.filter(c=>c.id!==id))
     if(activeChannel?.id===id) setActiveChannel(null)
     setConfirmDeleteChannel(null)
   }
-
   async function clearMessages(channelId) {
-    await supabase.from('messages').delete().eq('channel', channelId)
+    await supabase.from('messages').delete().eq('channel',channelId)
     if(channelId==='main') setMessages([])
     else setChannelMessages([])
     setConfirmClear(null)
   }
-
   async function addMoment(e) {
     e.preventDefault(); if(!momentInput.trim()) return
     const text=momentInput.trim(); setMomentInput('')
+    momentInputRef.current?.focus()
     await supabase.from('moments').insert({text,author:user})
   }
   async function deleteMoment(id) {
@@ -326,41 +388,19 @@ export default function App() {
     setMoments(prev=>prev.filter(m=>m.id!==id))
   }
 
-  const fmt=ts=>new Date(ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})
   const fmtDate=ts=>new Date(ts).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})
   const shortName=s=>s===DAVID?'David':'Yaël'
-  const isMe=s=>s===user
 
   if(!user) return <LoginScreen onSelect={handleSelect}/>
 
   return (
-    <div className="app" onClick={()=>emojiPicker&&setEmojiPicker(false)}>
+    <div className={`app tab-${view}`} style={{height:appHeight}} onClick={()=>emojiPicker&&setEmojiPicker(false)}>
       <FloatLayer floats={floats}/>
 
-      {/* Confirms */}
-      {confirmClear && (
-        <ConfirmDialog
-          message="Effacer tous les messages de ce chat ?"
-          onConfirm={()=>clearMessages(confirmClear)}
-          onCancel={()=>setConfirmClear(null)}
-        />
-      )}
-      {confirmDeleteChannel && (
-        <ConfirmDialog
-          message="Supprimer ce canal et tous ses messages ?"
-          onConfirm={()=>deleteChannel(confirmDeleteChannel)}
-          onCancel={()=>setConfirmDeleteChannel(null)}
-        />
-      )}
-      {showCreateChannel && (
-        <CreateChannelModal
-          onClose={()=>setShowCreateChannel(false)}
-          onCreate={createChannel}
-          generating={generatingChannel}
-        />
-      )}
+      {confirmClear && <ConfirmDialog message="Effacer tous les messages ?" onConfirm={()=>clearMessages(confirmClear)} onCancel={()=>setConfirmClear(null)}/>}
+      {confirmDeleteChannel && <ConfirmDialog message="Supprimer ce canal et tous ses messages ?" onConfirm={()=>deleteChannel(confirmDeleteChannel)} onCancel={()=>setConfirmDeleteChannel(null)}/>}
+      {showCreateChannel && <CreateChannelModal onClose={()=>setShowCreateChannel(false)} onCreate={createChannel} generating={generatingChannel}/>}
 
-      {/* Install banner */}
       {showInstall && (
         <div className="install-banner">
           <span>📲 Installer sur l'écran d'accueil</span>
@@ -371,7 +411,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Header */}
+      {/* ── Header ── */}
       <header className="header">
         <div className="header-row">
           <div className="header-left">
@@ -385,34 +425,35 @@ export default function App() {
             <div className="header-title">
               {activeChannel ? (
                 <span className="header-channel-name">{activeChannel.theme_icon} {activeChannel.name}</span>
-              ) : (
+              ) : view==='chat' ? (
                 <><span className="ornament">✦</span><h1>À Deux</h1><span className="ornament">✦</span></>
+              ) : view==='channels' ? (
+                <><span className="ornament ornament-blue">◈</span><h1>Canaux</h1><span className="ornament ornament-blue">◈</span></>
+              ) : (
+                <><span className="ornament ornament-lav">✦</span><h1>Moments</h1><span className="ornament ornament-lav">✦</span></>
               )}
             </div>
           </div>
           <div className="header-right">
-            {/* Clear button in chat or channel */}
-            {(view==='chat' && !activeChannel) && (
+            {(view==='chat'&&!activeChannel) && (
               <button className="icon-btn" title="Effacer le chat" onClick={()=>setConfirmClear('main')}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
                 </svg>
               </button>
             )}
-            {activeChannel && (
-              <>
-                <button className="icon-btn" title="Effacer les messages" onClick={()=>setConfirmClear(activeChannel.id)}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
-                  </svg>
-                </button>
-                <button className="icon-btn danger" title="Supprimer le canal" onClick={()=>setConfirmDeleteChannel(activeChannel.id)}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-                  </svg>
-                </button>
-              </>
-            )}
+            {activeChannel && (<>
+              <button className="icon-btn" title="Effacer les messages" onClick={()=>setConfirmClear(activeChannel.id)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+                </svg>
+              </button>
+              <button className="icon-btn danger" title="Supprimer le canal" onClick={()=>setConfirmDeleteChannel(activeChannel.id)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+              </button>
+            </>)}
             <button className="logout-btn" onClick={handleLogout} title="Changer d'utilisateur">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -426,54 +467,32 @@ export default function App() {
             <span>{shortName(user)}</span>
           </div>
         )}
-        {activeChannel && (
-          <p className="channel-problematique">💭 {activeChannel.problematique}</p>
-        )}
+        {activeChannel && <p className="channel-problematique">💭 {activeChannel.problematique}</p>}
       </header>
 
+      {/* ── Main swipe area ── */}
       <main className="main"
-        onTouchStart={e=>{
-          touchStartX.current = e.touches[0].clientX
-          touchStartY.current = e.touches[0].clientY
-        }}
+        onTouchStart={e=>{ touchStartX.current=e.touches[0].clientX; touchStartY.current=e.touches[0].clientY }}
         onTouchEnd={e=>{
-          if(activeChannel) return
-          if(touchStartX.current===null) return
-          const dx = e.changedTouches[0].clientX - touchStartX.current
-          const dy = e.changedTouches[0].clientY - touchStartY.current
-          if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
-            const idx = TABS.indexOf(view)
-            if(dx < 0 && idx < TABS.length-1) setView(TABS[idx+1])
-            if(dx > 0 && idx > 0) setView(TABS[idx-1])
+          if(activeChannel||touchStartX.current===null) return
+          const dx=e.changedTouches[0].clientX-touchStartX.current
+          const dy=e.changedTouches[0].clientY-touchStartY.current
+          if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>44) {
+            const idx=TABS.indexOf(view)
+            if(dx<0&&idx<TABS.length-1) setView(TABS[idx+1])
+            if(dx>0&&idx>0) setView(TABS[idx-1])
           }
-          touchStartX.current = null
+          touchStartX.current=null
         }}
       >
-        <div
-          ref={swipeRef}
-          className="swipe-container"
-          style={{ transform: `translateX(${-tabIndex * (100/3)}%)` }}
-        >
+        <div className="swipe-container" style={{transform:`translateX(${-tabIndex*(100/3)}%)`}}>
 
-          {/* ── CHAT PRINCIPAL ── */}
+          {/* CHAT */}
           <div className="swipe-pane pane-chat">
             <div className="pane">
-              <div className="messages">
-                {messages.length===0 && (
-                  <div className="empty"><div className="empty-icon">💕</div><p>Votre espace privé commence ici</p></div>
-                )}
-                {messages.map(msg=>(
-                  <div key={msg.id} className={`msg-wrap ${isMe(msg.sender)?'mine':'hers'}`}>
-                    <div className="bubble"><p>{msg.text}</p></div>
-                    <span className="meta">{shortName(msg.sender)} · {fmt(msg.created_at)}</span>
-                  </div>
-                ))}
-                <div ref={messagesEndRef}/>
-              </div>
+              <MessageList messages={messages} user={user} endRef={messagesEndRef}/>
               <div className="emoji-zone" onClick={e=>e.stopPropagation()}>
-                <button className="emoji-toggle" onClick={()=>setEmojiPicker(v=>!v)}>
-                  {emojiPicker?'✕':'💝'}
-                </button>
+                <button className="emoji-toggle" onClick={()=>setEmojiPicker(v=>!v)}>{emojiPicker?'✕':'💝'}</button>
                 {emojiPicker && (
                   <div className="emoji-picker">
                     <div className="emoji-grid">
@@ -483,7 +502,8 @@ export default function App() {
                 )}
               </div>
               <form className="input-row" onSubmit={sendMessage}>
-                <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Écris quelque chose…" autoComplete="off"/>
+                <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
+                  placeholder="Écris quelque chose…" autoComplete="off" enterKeyHint="send"/>
                 <button type="submit" className="send-btn" disabled={!input.trim()}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -493,17 +513,12 @@ export default function App() {
             </div>
           </div>
 
-          {/* ── CANAUX ── */}
+          {/* CANAUX */}
           <div className="swipe-pane pane-channels">
             {!activeChannel ? (
               <div className="pane">
                 <div className="messages">
-                  {channels.length===0 && (
-                    <div className="empty">
-                      <div className="empty-icon">🗂️</div>
-                      <p>Créez votre premier canal thématique</p>
-                    </div>
-                  )}
+                  {channels.length===0 && <div className="empty"><div className="empty-icon">🗂️</div><p>Créez votre premier canal thématique</p></div>}
                   {channels.map(ch=>(
                     <button key={ch.id} className="channel-card" onClick={()=>{setActiveChannel(ch);setChannelMessages([])}}>
                       <div className="channel-icon">{ch.theme_icon}</div>
@@ -529,23 +544,10 @@ export default function App() {
               </div>
             ) : (
               <div className="pane">
-                <div className="messages">
-                  {channelMessages.length===0 && (
-                    <div className="empty">
-                      <div className="empty-icon">{activeChannel.theme_icon}</div>
-                      <p>Commencez la discussion !</p>
-                    </div>
-                  )}
-                  {channelMessages.map(msg=>(
-                    <div key={msg.id} className={`msg-wrap ${isMe(msg.sender)?'mine':'hers'}`}>
-                      <div className="bubble"><p>{msg.text}</p></div>
-                      <span className="meta">{shortName(msg.sender)} · {fmt(msg.created_at)}</span>
-                    </div>
-                  ))}
-                  <div ref={chMsgEndRef}/>
-                </div>
+                <MessageList messages={channelMessages} user={user} endRef={chMsgEndRef}/>
                 <form className="input-row" onSubmit={sendChannelMessage}>
-                  <input value={channelInput} onChange={e=>setChannelInput(e.target.value)} placeholder="Répondre…" autoComplete="off"/>
+                  <input ref={chInputRef} value={channelInput} onChange={e=>setChannelInput(e.target.value)}
+                    placeholder="Répondre…" autoComplete="off" enterKeyHint="send"/>
                   <button type="submit" className="send-btn" disabled={!channelInput.trim()}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -556,13 +558,11 @@ export default function App() {
             )}
           </div>
 
-          {/* ── MOMENTS ── */}
+          {/* MOMENTS */}
           <div className="swipe-pane pane-moments">
             <div className="pane">
               <div className="messages">
-                {moments.length===0 && (
-                  <div className="empty"><div className="empty-icon">🌙</div><p>Notez vos moments précieux ici</p></div>
-                )}
+                {moments.length===0 && <div className="empty"><div className="empty-icon">🌙</div><p>Notez vos moments précieux ici</p></div>}
                 {moments.map(m=>(
                   <div key={m.id} className="moment-card">
                     <button className="moment-delete" onClick={()=>deleteMoment(m.id)} title="Supprimer">
@@ -576,7 +576,8 @@ export default function App() {
                 ))}
               </div>
               <form className="input-row" onSubmit={addMoment}>
-                <input value={momentInput} onChange={e=>setMomentInput(e.target.value)} placeholder="Un souvenir, une pensée…" autoComplete="off"/>
+                <input ref={momentInputRef} value={momentInput} onChange={e=>setMomentInput(e.target.value)}
+                  placeholder="Un souvenir, une pensée…" autoComplete="off" enterKeyHint="done"/>
                 <button type="submit" className="send-btn" disabled={!momentInput.trim()}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -589,7 +590,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* Nav */}
+      {/* ── Nav ── */}
       <nav className="nav">
         <button className={`tab-chat ${view==='chat'?'active':''}`} onClick={()=>{setView('chat');setActiveChannel(null)}}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
