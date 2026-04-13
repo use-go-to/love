@@ -23,7 +23,14 @@ body {
   --text:    #ede8f8;
   --dim:     rgba(237,232,248,0.4);
   --nav-h:   64px;
+  --sat:     env(safe-area-inset-top, 0px);
+  --sab:     env(safe-area-inset-bottom, 0px);
 }
+
+/* Tab accent colors */
+--tab-chat-color:     #c9a96e;   /* gold  */
+--tab-channels-color: #6eb5c9;   /* blue  */
+--tab-moments-color:  #d4b8f0;   /* lav   */
 
 /* ══════════════════════════════
    LOGIN SCREEN
@@ -223,9 +230,10 @@ body {
 }
 .install-dismiss { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 1rem; padding: 4px; }
 
-/* Header */
+/* Header — respect iOS status bar */
 .header {
-  flex-shrink: 0; padding: 12px 16px 10px;
+  flex-shrink: 0;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 10px;
   background: var(--bg2); border-bottom: 1px solid var(--border);
 }
 .header-row {
@@ -262,6 +270,40 @@ body {
 
 /* Main / Pane */
 .main { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+
+/* Swipe container — 3 panes side by side */
+.swipe-container {
+  display: flex;
+  width: 300%;
+  height: 100%;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+.swipe-pane {
+  width: calc(100% / 3);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Per-tab tints on pane backgrounds */
+.swipe-pane.pane-chat     { background: linear-gradient(180deg, rgba(201,169,110,0.04) 0%, transparent 80%); }
+.swipe-pane.pane-channels { background: linear-gradient(180deg, rgba(110,181,201,0.05) 0%, transparent 80%); }
+.swipe-pane.pane-moments  { background: linear-gradient(180deg, rgba(212,184,240,0.05) 0%, transparent 80%); }
+
+/* Per-tab accent on input row border */
+.pane-chat .input-row     { border-top-color: rgba(201,169,110,0.18); }
+.pane-channels .input-row { border-top-color: rgba(110,181,201,0.18); }
+.pane-moments .input-row  { border-top-color: rgba(212,184,240,0.18); }
+
+/* Per-tab message scroll area texture */
+.pane-chat .messages     { background: transparent; }
+.pane-channels .messages { background: repeating-linear-gradient(0deg, transparent, transparent 47px, rgba(110,181,201,0.03) 48px); }
+.pane-moments .messages  { background: repeating-linear-gradient(0deg, transparent, transparent 47px, rgba(212,184,240,0.03) 48px); }
+
 .pane { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 
 /* Messages */
@@ -358,7 +400,7 @@ body {
 /* Moments */
 .moment-card {
   background: var(--surface); border: 1px solid var(--border);
-  border-left: 3px solid var(--gold);
+  border-left: 3px solid var(--lav);
   border-radius: 14px; padding: 14px 44px 14px 16px;
   display: flex; flex-direction: column; gap: 6px;
   position: relative; transition: background 0.2s;
@@ -379,7 +421,7 @@ body {
 .input-row {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 16px;
-  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+  padding-bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) + 10px));
   background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0;
 }
 .input-row input {
@@ -400,29 +442,36 @@ body {
 .send-btn:disabled { opacity: 0.28; pointer-events: none; }
 .send-btn:active { transform: scale(0.9); }
 
-/* Nav */
+/* Nav — safe area bottom + big touch targets */
 .nav {
-  display: flex; background: var(--bg2);
+  display: flex;
+  background: var(--bg2);
   border-top: 1px solid var(--border);
-  height: var(--nav-h);
-  padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
   flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .nav button {
   flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 4px;
+  align-items: center; justify-content: center; gap: 5px;
   background: none; border: none; cursor: pointer;
-  color: var(--dim); transition: color 0.2s; position: relative;
+  color: var(--dim); transition: color 0.2s, background 0.2s;
+  position: relative;
+  min-height: 64px;
+  padding: 10px 4px;
+  border-top: 2px solid transparent;
+  transition: all 0.2s;
 }
-.nav button svg { width: 22px; height: 22px; }
-.nav button span { font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; }
-.nav button.active { color: var(--gold); }
-.nav button.active::after {
-  content: ''; position: absolute; top: 0; left: 50%;
-  transform: translateX(-50%);
-  width: 28px; height: 2px;
-  background: var(--gold); border-radius: 0 0 2px 2px;
-}
+.nav button svg { width: 24px; height: 24px; }
+.nav button span { font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; }
+
+/* Chat tab */
+.nav button.tab-chat.active  { color: var(--gold);   border-top-color: var(--gold);   background: rgba(201,169,110,0.06); }
+/* Canaux tab */
+.nav button.tab-channels.active { color: var(--blue); border-top-color: var(--blue); background: rgba(110,181,201,0.06); }
+/* Moments tab */
+.nav button.tab-moments.active { color: var(--lav);   border-top-color: var(--lav);   background: rgba(212,184,240,0.06); }
+
+.nav button:not(.active):hover { color: rgba(237,232,248,0.6); }
 
 /* ══════════════════════════════
    DIALOG / CONFIRM
@@ -560,8 +609,8 @@ body {
 
 .create-channel-bar {
   padding: 12px 16px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
-  background: var(--bg2); border-top: 1px solid var(--border);
+  padding-bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 12px));
+  background: var(--bg2); border-top: 1px solid rgba(110,181,201,0.18);
   flex-shrink: 0;
 }
 .create-channel-btn {
