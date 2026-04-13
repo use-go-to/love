@@ -1,33 +1,38 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  base: '/love/',
   plugins: [
     react(),
     VitePWA({
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.js',
       registerType: 'autoUpdate',
+      injectRegister: 'auto',
+
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true
       },
+
       manifest: {
         name: 'À Deux',
         short_name: 'À Deux',
-        description: 'Notre espace privé à deux',
-        id:               '/love/',
-        start_url:        '/love/',
-        scope:            '/love/',
-        display:          'standalone',
-        orientation:      'portrait',
-        theme_color:      '#0f0c1a',
-        background_color: '#0f0c1a',
+        start_url: '/love/',
+        display: 'standalone',
+        background_color: '#000000',
+        theme_color: '#000000',
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+          {
+            src: '/love/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/love/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          }
         ]
       }
     })
