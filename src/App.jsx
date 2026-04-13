@@ -237,9 +237,8 @@ export default function App() {
   const [confirmClear, setConfirmClear]       = useState(null)
   const [confirmDeleteChannel, setConfirmDeleteChannel] = useState(null)
 
-  // ── iOS keyboard layout state ──
-  const [appHeight, setAppHeight] = useState('100dvh')
-  const [appTop, setAppTop]       = useState('0px')
+  // ── iOS keyboard layout — ref DOM directe (pas de state = pas de re-render = instantané) ──
+  const appRef = useRef(null)
 
   const messagesEndRef = useRef(null)
   const chMsgEndRef    = useRef(null)
@@ -251,33 +250,46 @@ export default function App() {
 
   const tabIndex = TABS.indexOf(view)
 
-  // ── Fix iOS keyboard: ancre l'app sur la zone visible exacte ──
+  // ── Fix iOS keyboard: manipulation DOM directe = 0 frame de retard ──
+  // On n'utilise PAS setState : React re-render est trop lent (1 frame de glitch).
+  // On écrit directement sur appRef.current.style, synchrone avec le paint.
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
 
-    const onViewportChange = () => {
-      // vv.offsetTop = distance depuis le haut de la page jusqu'à la zone visible
-      // vv.height    = hauteur de la zone visible (au-dessus du clavier)
-      setAppTop(vv.offsetTop + 'px')
-      setAppHeight(vv.height + 'px')
-
-      // Scroll vers le dernier message une fois le layout recalculé
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-        chMsgEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-      }, 80)
+    const applyLayout = () => {
+      const el = appRef.current
+      if (!el) return
+      el.style.top    = vv.offsetTop + 'px'
+      el.style.height = vv.height + 'px'
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+      chMsgEndRef.current?.scrollIntoView({ behavior: 'instant' })
     }
 
-    vv.addEventListener('resize', onViewportChange)
-    vv.addEventListener('scroll', onViewportChange)
+    // focusin : déclenché AVANT que Safari scroll → on corrige immédiatement
+    const onFocusIn = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        requestAnimationFrame(applyLayout)
+      }
+    }
+    const onFocusOut = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        requestAnimationFrame(applyLayout)
+      }
+    }
 
-    // Init
-    onViewportChange()
+    vv.addEventListener('resize', applyLayout)
+    vv.addEventListener('scroll', applyLayout)
+    document.addEventListener('focusin',  onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+
+    applyLayout()
 
     return () => {
-      vv.removeEventListener('resize', onViewportChange)
-      vv.removeEventListener('scroll', onViewportChange)
+      vv.removeEventListener('resize', applyLayout)
+      vv.removeEventListener('scroll', applyLayout)
+      document.removeEventListener('focusin',  onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
     }
   }, [])
 
@@ -412,17 +424,18 @@ export default function App() {
 
   return (
     <div
+      ref={appRef}
       className={`app tab-${view}`}
       style={{
-        // position: fixed + top/height calés sur visualViewport
-        // → l'app "colle" exactement la zone visible au-dessus du clavier iOS
+        // top et height sont écrits directement par applyLayout() via appRef
+        // 0 re-render React = 0 glitch
         position: 'fixed',
-        top: appTop,
+        top: '0px',
         left: '50%',
         transform: 'translateX(-50%)',
         width: '100%',
         maxWidth: '520px',
-        height: appHeight,
+        height: '100dvh',
       }}
       onClick={()=>emojiPicker&&setEmojiPicker(false)}
     >
