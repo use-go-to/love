@@ -5,38 +5,39 @@ precacheAndRoute(self.__WB_MANIFEST)
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))
 
+// 🔥 FIX iOS
 self.addEventListener('push', e => {
-  let payload = { title: 'À Deux', body: 'Nouveau message', url: '/love/' }
-  if (e.data) {
-    try { payload = { ...payload, ...e.data.json() } }
-    catch (_) { payload.body = e.data.text() || payload.body }
+  let data = {}
+
+  try {
+    data = e.data?.json() || {}
+  } catch {
+    data = { body: e.data?.text() }
   }
 
-  const options = {
-    body:     payload.body,
-    icon:     '/love/icon-192.png',
-    badge:    '/love/icon-192.png',
-    tag:      'adeux-' + Date.now(),
-    renotify: false,
-    vibrate:  [100, 50, 100],
-    data:     { url: payload.url },
-  }
+  const title = data.title || 'À Deux'
+  const body  = data.body  || 'Nouveau message'
 
   e.waitUntil(
-    self.registration.showNotification(payload.title, options)
+    self.registration.showNotification(title, {
+      body,
+      icon: '/love/icon-192.png'
+    })
   )
 })
 
+// clic notif
 self.addEventListener('notificationclick', e => {
   e.notification.close()
-  const target = e.notification.data?.url || '/love/'
+
+  const url = '/love/'
+
   e.waitUntil(
-    self.clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(clients => {
-        const existing = clients.find(c => c.url.startsWith(self.location.origin + '/love/'))
+        const existing = clients.find(c => c.url.includes('/love/'))
         if (existing) return existing.focus()
-        return self.clients.openWindow(target)
+        return self.clients.openWindow(url)
       })
   )
 })
