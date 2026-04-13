@@ -17,7 +17,7 @@ self.addEventListener('push', e => {
 
   const title = data.title || 'À Deux'
   const body  = data.body  || 'Nouveau message'
-  const url   = data.url   || 'https://TON-DOMAINE.com/love/'
+  const url   = data.url   || 'https://use-go-to.github.io/love/'
 
   e.waitUntil(
     self.registration.showNotification(title, {
