@@ -9,21 +9,21 @@ self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))
 
 // ── Push reçu (hors app) ──
 self.addEventListener('push', e => {
-  if (!e.data) return
-
-  let payload
-  try { payload = e.data.json() }
-  catch { payload = { title: 'À Deux', body: e.data.text() } }
+  let payload = { title: 'À Deux', body: 'Nouveau message' }
+  if (e.data) {
+    try { payload = e.data.json() }
+    catch { payload = { title: 'À Deux', body: e.data.text() || 'Nouveau message' } }
+  }
 
   const options = {
-    body:    payload.body  || '',
-    icon:    '/icons/icon-192.png',
-    badge:   '/icons/icon-192.png',
-    tag:     'adeux-message',           // regroupe les notifs (pas de spam)
+    body:     payload.body || 'Nouveau message',
+    icon:     '/love/icon-192.png',
+    badge:    '/love/icon-192.png',
+    tag:      'adeux-message',
     renotify: true,
-    vibrate: [100, 50, 100],
-    data:    { url: payload.url || '/' },
-    actions: []
+    vibrate:  [100, 50, 100],
+    data:     { url: payload.url || '/love/' },
+    actions:  []
   }
 
   e.waitUntil(
@@ -34,7 +34,7 @@ self.addEventListener('push', e => {
 // ── Clic sur la notif → ouvre / focus l'app ──
 self.addEventListener('notificationclick', e => {
   e.notification.close()
-  const target = e.notification.data?.url || '/'
+  const target = e.notification.data?.url || '/love/'
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
       const existing = clients.find(c => c.url.includes(self.location.origin))
