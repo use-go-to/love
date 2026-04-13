@@ -3,22 +3,18 @@ import { VitePWA } from 'vite-plugin-pwa'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  base: '/love/',   // 🔥 OBLIGATOIRE (sinon 404 sur assets)
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
 
-      workbox: {
-        cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true
-      },
-
       manifest: {
         name: 'À Deux',
         short_name: 'À Deux',
         start_url: '/love/',
+        scope: '/love/',
         display: 'standalone',
         background_color: '#000000',
         theme_color: '#000000',
@@ -34,6 +30,12 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
+      },
+
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true
       }
     })
   ]
