@@ -237,14 +237,13 @@ export default function App() {
   const [emojiPicker, setEmojiPicker]         = useState(false)
   const [confirmClear, setConfirmClear]       = useState(null)
   const [confirmDeleteChannel, setConfirmDeleteChannel] = useState(null)
+  const [pushGranted, setPushGranted]         = useState(false)  // ← NOUVEAU
 
   // ── Toast in-app (style iMessage) ──
-  const [toast, setToast] = useState(null)  // { sender, text }
+  const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
 
-  // ── iOS keyboard layout — ref DOM directe (pas de state = pas de re-render = instantané) ──
-  const appRef = useRef(null)
-
+  const appRef         = useRef(null)
   const messagesEndRef = useRef(null)
   const chMsgEndRef    = useRef(null)
   const touchStartX    = useRef(null)
@@ -255,13 +254,10 @@ export default function App() {
 
   const tabIndex = TABS.indexOf(view)
 
-  // ── Fix iOS keyboard: manipulation DOM directe = 0 frame de retard ──
-  // On n'utilise PAS setState : React re-render est trop lent (1 frame de glitch).
-  // On écrit directement sur appRef.current.style, synchrone avec le paint.
+  // ── Fix iOS keyboard ──
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
-
     const applyLayout = () => {
       const el = appRef.current
       if (!el) return
@@ -270,26 +266,19 @@ export default function App() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
       chMsgEndRef.current?.scrollIntoView({ behavior: 'instant' })
     }
-
-    // focusin : déclenché AVANT que Safari scroll → on corrige immédiatement
     const onFocusIn = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')
         requestAnimationFrame(applyLayout)
-      }
     }
     const onFocusOut = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')
         requestAnimationFrame(applyLayout)
-      }
     }
-
     vv.addEventListener('resize', applyLayout)
     vv.addEventListener('scroll', applyLayout)
     document.addEventListener('focusin',  onFocusIn)
     document.addEventListener('focusout', onFocusOut)
-
     applyLayout()
-
     return () => {
       vv.removeEventListener('resize', applyLayout)
       vv.removeEventListener('scroll', applyLayout)
@@ -305,15 +294,23 @@ export default function App() {
     return ()=>window.removeEventListener('beforeinstallprompt',h)
   },[])
 
-  // ── Enregistrement push au login ──
+  // ── Push : si permission déjà accordée, enregistre silencieusement ──
+  // Sinon le bouton "Activer les notifications" apparaît dans le header
   useEffect(()=>{
     if(!user) return
-    // Petit délai pour ne pas bloquer le rendu initial
-    const t = setTimeout(()=>registerPush(user), 1500)
-    return ()=>clearTimeout(t)
+    if(Notification.permission === 'granted') {
+      setPushGranted(true)
+      registerPush(user)
+    }
   },[user])
 
-  // ── Toast in-app : affiche quand message reçu hors onglet chat ──
+  // ── Activation push via tap utilisateur (obligatoire sur iOS) ──
+  async function handleActivateNotifs() {
+    const result = await registerPush(user)
+    if(result) setPushGranted(true)
+  }
+
+  // ── Toast in-app ──
   function showToast(sender, text) {
     if(toastTimer.current) clearTimeout(toastTimer.current)
     setToast({ sender, text })
@@ -334,7 +331,6 @@ export default function App() {
     const ch1=supabase.channel('msgs')
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'channel=eq.main'},p=>{
         setMessages(prev=>[...prev,p.new])
-        // Toast si expéditeur != moi et pas sur l'onglet chat
         if(p.new.sender !== user) {
           setView(v=>{ if(v!=='chat') showToast(p.new.sender, p.new.text); return v })
         }
@@ -392,9 +388,11 @@ export default function App() {
   }
 
   function handleSelect(name) { localStorage.setItem('adeux_user',name); setUser(name) }
+
   function handleLogout() {
     unregisterPush()
     localStorage.removeItem('adeux_user')
+    setPushGranted(false)
     setUser(null); setMessages([]); setMoments([]); setChannels([]); setActiveChannel(null)
   }
 
@@ -449,18 +447,15 @@ export default function App() {
 
   const fmtDate=ts=>new Date(ts).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})
   const shortName=s=>s===DAVID?'David':'Yaël'
+  const shortSender=s=>s==='David Lecointre'?'David':'Yaël'
 
   if(!user) return <LoginScreen onSelect={handleSelect}/>
-
-  const shortSender = s => s === 'David Lecointre' ? 'David' : 'Yaël'
 
   return (
     <div
       ref={appRef}
       className={`app tab-${view}`}
       style={{
-        // top et height sont écrits directement par applyLayout() via appRef
-        // 0 re-render React = 0 glitch
         position: 'fixed',
         top: '0px',
         left: '50%',
@@ -551,12 +546,35 @@ export default function App() {
             </button>
           </div>
         </div>
+
         {!activeChannel && (
           <div className="user-pill">
             <span className="user-dot" style={{background:user===DAVID?'#6eb5c9':'#f4a0c0'}}/>
             <span>{shortName(user)}</span>
           </div>
         )}
+
+        {/* ── Bouton activation notifications (iOS) ── */}
+        {!activeChannel && !pushGranted && Notification.permission !== 'granted' && (
+          <button
+            onClick={handleActivateNotifs}
+            style={{
+              margin: '6px auto 2px',
+              display: 'block',
+              background: 'rgba(244,160,192,0.12)',
+              border: '1px solid rgba(244,160,192,0.35)',
+              borderRadius: '20px',
+              color: '#f4a0c0',
+              fontSize: '12px',
+              padding: '5px 14px',
+              cursor: 'pointer',
+              letterSpacing: '0.02em',
+            }}
+          >
+            🔔 Activer les notifications
+          </button>
+        )}
+
         {activeChannel && <p className="channel-problematique">💭 {activeChannel.problematique}</p>}
       </header>
 
