@@ -181,7 +181,7 @@ function MessageList({ messages, user, endRef }) {
     if(day !== lastDay) { grouped.push({type:'day', date:msg.created_at, id:'day-'+i}); lastDay=day }
     const prev = messages[i-1]
     const next = messages[i+1]
-    const CLUSTER = 90000 // 90s
+    const CLUSTER = 90000
     const samePrev = prev && prev.sender===msg.sender && new Date(msg.created_at)-new Date(prev.created_at)<CLUSTER
     const sameNext = next && next.sender===msg.sender && new Date(next.created_at)-new Date(msg.created_at)<CLUSTER
     grouped.push({type:'msg', msg, first:!samePrev, last:!sameNext})
@@ -218,25 +218,28 @@ function MessageList({ messages, user, endRef }) {
 }
 
 export default function App() {
-  const [user, setUser]                     = useState(()=>localStorage.getItem('adeux_user')||null)
-  const [view, setView]                     = useState('chat')
-  const [messages, setMessages]             = useState([])
-  const [input, setInput]                   = useState('')
-  const [floats, setFloats]                 = useState([])
-  const [moments, setMoments]               = useState([])
-  const [momentInput, setMomentInput]       = useState('')
-  const [channels, setChannels]             = useState([])
-  const [activeChannel, setActiveChannel]   = useState(null)
+  const [user, setUser]                       = useState(()=>localStorage.getItem('adeux_user')||null)
+  const [view, setView]                       = useState('chat')
+  const [messages, setMessages]               = useState([])
+  const [input, setInput]                     = useState('')
+  const [floats, setFloats]                   = useState([])
+  const [moments, setMoments]                 = useState([])
+  const [momentInput, setMomentInput]         = useState('')
+  const [channels, setChannels]               = useState([])
+  const [activeChannel, setActiveChannel]     = useState(null)
   const [channelMessages, setChannelMessages] = useState([])
-  const [channelInput, setChannelInput]     = useState('')
+  const [channelInput, setChannelInput]       = useState('')
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [generatingChannel, setGeneratingChannel] = useState(false)
-  const [installPrompt, setInstallPrompt]   = useState(null)
-  const [showInstall, setShowInstall]       = useState(false)
-  const [emojiPicker, setEmojiPicker]       = useState(false)
-  const [confirmClear, setConfirmClear]     = useState(null)
+  const [installPrompt, setInstallPrompt]     = useState(null)
+  const [showInstall, setShowInstall]         = useState(false)
+  const [emojiPicker, setEmojiPicker]         = useState(false)
+  const [confirmClear, setConfirmClear]       = useState(null)
   const [confirmDeleteChannel, setConfirmDeleteChannel] = useState(null)
-  const [appHeight, setAppHeight]           = useState('100dvh')
+
+  // ── iOS keyboard layout state ──
+  const [appHeight, setAppHeight] = useState('100dvh')
+  const [appTop, setAppTop]       = useState('0px')
 
   const messagesEndRef = useRef(null)
   const chMsgEndRef    = useRef(null)
@@ -248,20 +251,34 @@ export default function App() {
 
   const tabIndex = TABS.indexOf(view)
 
-  // ── Fix iOS keyboard zoom + layout jump ──
-  // Input font-size ≥16px prevents zoom; visualViewport tracks real height
+  // ── Fix iOS keyboard: ancre l'app sur la zone visible exacte ──
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
-    const onResize = () => {
+
+    const onViewportChange = () => {
+      // vv.offsetTop = distance depuis le haut de la page jusqu'à la zone visible
+      // vv.height    = hauteur de la zone visible (au-dessus du clavier)
+      setAppTop(vv.offsetTop + 'px')
       setAppHeight(vv.height + 'px')
+
+      // Scroll vers le dernier message une fois le layout recalculé
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({behavior:'smooth'})
-        chMsgEndRef.current?.scrollIntoView({behavior:'smooth'})
-      }, 60)
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+        chMsgEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }, 80)
     }
-    vv.addEventListener('resize', onResize)
-    return () => vv.removeEventListener('resize', onResize)
+
+    vv.addEventListener('resize', onViewportChange)
+    vv.addEventListener('scroll', onViewportChange)
+
+    // Init
+    onViewportChange()
+
+    return () => {
+      vv.removeEventListener('resize', onViewportChange)
+      vv.removeEventListener('scroll', onViewportChange)
+    }
   }, [])
 
   // ── PWA ──
@@ -394,7 +411,21 @@ export default function App() {
   if(!user) return <LoginScreen onSelect={handleSelect}/>
 
   return (
-    <div className={`app tab-${view}`} style={{height:appHeight}} onClick={()=>emojiPicker&&setEmojiPicker(false)}>
+    <div
+      className={`app tab-${view}`}
+      style={{
+        // position: fixed + top/height calés sur visualViewport
+        // → l'app "colle" exactement la zone visible au-dessus du clavier iOS
+        position: 'fixed',
+        top: appTop,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '100%',
+        maxWidth: '520px',
+        height: appHeight,
+      }}
+      onClick={()=>emojiPicker&&setEmojiPicker(false)}
+    >
       <FloatLayer floats={floats}/>
 
       {confirmClear && <ConfirmDialog message="Effacer tous les messages ?" onConfirm={()=>clearMessages(confirmClear)} onCancel={()=>setConfirmClear(null)}/>}
