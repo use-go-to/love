@@ -1,14 +1,14 @@
 import { defineConfig } from 'vite'
-import { VitePWA } from 'vite-plugin-pwa'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/love/',   // 🔥 OBLIGATOIRE (sinon 404 sur assets)
+  base: '/love/',   // 🔥 OBLIGATOIRE POUR GITHUB PAGES
+
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
 
       manifest: {
         name: 'À Deux',
