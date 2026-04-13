@@ -8,17 +8,26 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Le SW est généré par vite-plugin-pwa — sw.js dans /public n'est plus utilisé
+      // On garde workbox en mode minimal pour ne pas casser le push
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+      },
       manifest: {
         name: 'À Deux',
         short_name: 'À Deux',
         description: 'Notre espace privé à deux',
-        theme_color: '#0f0c1a',
+        // ⚠️ Ces 3 champs sont critiques pour iOS Web Push
+        id:        '/love/',
+        start_url: '/love/',
+        scope:     '/love/',
+        display:   'standalone',
+        orientation:      'portrait',
+        theme_color:      '#0f0c1a',
         background_color: '#0f0c1a',
-        display: 'standalone',
-        orientation: 'portrait',
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' }
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
         ]
       }
     })
