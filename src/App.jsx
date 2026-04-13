@@ -167,6 +167,12 @@ export default function App() {
   const [confirmDeleteChannel, setConfirmDeleteChannel] = useState(null)
   const messagesEndRef = useRef(null)
   const chMsgEndRef = useRef(null)
+  const swipeRef = useRef(null)
+  const touchStartX = useRef(null)
+  const touchStartY = useRef(null)
+
+  const TABS = ['chat', 'channels', 'moments']
+  const tabIndex = TABS.indexOf(view)
 
   // PWA
   useEffect(()=>{
@@ -425,157 +431,180 @@ export default function App() {
         )}
       </header>
 
-      <main className="main">
+      <main className="main"
+        onTouchStart={e=>{
+          touchStartX.current = e.touches[0].clientX
+          touchStartY.current = e.touches[0].clientY
+        }}
+        onTouchEnd={e=>{
+          if(activeChannel) return
+          if(touchStartX.current===null) return
+          const dx = e.changedTouches[0].clientX - touchStartX.current
+          const dy = e.changedTouches[0].clientY - touchStartY.current
+          if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+            const idx = TABS.indexOf(view)
+            if(dx < 0 && idx < TABS.length-1) setView(TABS[idx+1])
+            if(dx > 0 && idx > 0) setView(TABS[idx-1])
+          }
+          touchStartX.current = null
+        }}
+      >
+        <div
+          ref={swipeRef}
+          className="swipe-container"
+          style={{ transform: `translateX(${-tabIndex * (100/3)}%)` }}
+        >
 
-        {/* ── CHAT PRINCIPAL ── */}
-        {view==='chat' && !activeChannel && (
-          <div className="pane">
-            <div className="messages">
-              {messages.length===0 && (
-                <div className="empty"><div className="empty-icon">💕</div><p>Votre espace privé commence ici</p></div>
-              )}
-              {messages.map(msg=>(
-                <div key={msg.id} className={`msg-wrap ${isMe(msg.sender)?'mine':'hers'}`}>
-                  <div className="bubble"><p>{msg.text}</p></div>
-                  <span className="meta">{shortName(msg.sender)} · {fmt(msg.created_at)}</span>
-                </div>
-              ))}
-              <div ref={messagesEndRef}/>
-            </div>
-            <div className="emoji-zone" onClick={e=>e.stopPropagation()}>
-              <button className="emoji-toggle" onClick={()=>setEmojiPicker(v=>!v)}>
-                {emojiPicker?'✕':'💝'}
-              </button>
-              {emojiPicker && (
-                <div className="emoji-picker">
-                  <div className="emoji-grid">
-                    {LOVE_EMOJIS.map(e=>(<button key={e} className="emoji-btn" onClick={()=>sendEmoji(e)}>{e}</button>))}
+          {/* ── CHAT PRINCIPAL ── */}
+          <div className="swipe-pane pane-chat">
+            <div className="pane">
+              <div className="messages">
+                {messages.length===0 && (
+                  <div className="empty"><div className="empty-icon">💕</div><p>Votre espace privé commence ici</p></div>
+                )}
+                {messages.map(msg=>(
+                  <div key={msg.id} className={`msg-wrap ${isMe(msg.sender)?'mine':'hers'}`}>
+                    <div className="bubble"><p>{msg.text}</p></div>
+                    <span className="meta">{shortName(msg.sender)} · {fmt(msg.created_at)}</span>
                   </div>
-                </div>
-              )}
-            </div>
-            <form className="input-row" onSubmit={sendMessage}>
-              <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Écris quelque chose…" autoComplete="off"/>
-              <button type="submit" className="send-btn" disabled={!input.trim()}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* ── CANAUX LIST ── */}
-        {view==='channels' && !activeChannel && (
-          <div className="pane">
-            <div className="messages">
-              {channels.length===0 && (
-                <div className="empty">
-                  <div className="empty-icon">🗂️</div>
-                  <p>Créez votre premier canal thématique</p>
-                </div>
-              )}
-              {channels.map(ch=>(
-                <button key={ch.id} className="channel-card" onClick={()=>{setActiveChannel(ch);setChannelMessages([])}}>
-                  <div className="channel-icon">{ch.theme_icon}</div>
-                  <div className="channel-info">
-                    <div className="channel-name">{ch.name}</div>
-                    <div className="channel-theme">{ch.theme_label}</div>
-                    <div className="channel-prob">💭 {ch.problematique}</div>
+                ))}
+                <div ref={messagesEndRef}/>
+              </div>
+              <div className="emoji-zone" onClick={e=>e.stopPropagation()}>
+                <button className="emoji-toggle" onClick={()=>setEmojiPicker(v=>!v)}>
+                  {emojiPicker?'✕':'💝'}
+                </button>
+                {emojiPicker && (
+                  <div className="emoji-picker">
+                    <div className="emoji-grid">
+                      {LOVE_EMOJIS.map(e=>(<button key={e} className="emoji-btn" onClick={()=>sendEmoji(e)}>{e}</button>))}
+                    </div>
                   </div>
-                  <svg className="channel-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
+                )}
+              </div>
+              <form className="input-row" onSubmit={sendMessage}>
+                <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Écris quelque chose…" autoComplete="off"/>
+                <button type="submit" className="send-btn" disabled={!input.trim()}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
                   </svg>
                 </button>
-              ))}
-            </div>
-            <div className="create-channel-bar">
-              <button className="create-channel-btn" onClick={()=>setShowCreateChannel(true)}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:18,height:18}}>
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                Nouveau canal
-              </button>
+              </form>
             </div>
           </div>
-        )}
 
-        {/* ── CANAL ACTIF ── */}
-        {view==='channels' && activeChannel && (
-          <div className="pane">
-            <div className="messages">
-              {channelMessages.length===0 && (
-                <div className="empty">
-                  <div className="empty-icon">{activeChannel.theme_icon}</div>
-                  <p>Commencez la discussion !</p>
+          {/* ── CANAUX ── */}
+          <div className="swipe-pane pane-channels">
+            {!activeChannel ? (
+              <div className="pane">
+                <div className="messages">
+                  {channels.length===0 && (
+                    <div className="empty">
+                      <div className="empty-icon">🗂️</div>
+                      <p>Créez votre premier canal thématique</p>
+                    </div>
+                  )}
+                  {channels.map(ch=>(
+                    <button key={ch.id} className="channel-card" onClick={()=>{setActiveChannel(ch);setChannelMessages([])}}>
+                      <div className="channel-icon">{ch.theme_icon}</div>
+                      <div className="channel-info">
+                        <div className="channel-name">{ch.name}</div>
+                        <div className="channel-theme">{ch.theme_label}</div>
+                        <div className="channel-prob">💭 {ch.problematique}</div>
+                      </div>
+                      <svg className="channel-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                    </button>
+                  ))}
                 </div>
-              )}
-              {channelMessages.map(msg=>(
-                <div key={msg.id} className={`msg-wrap ${isMe(msg.sender)?'mine':'hers'}`}>
-                  <div className="bubble"><p>{msg.text}</p></div>
-                  <span className="meta">{shortName(msg.sender)} · {fmt(msg.created_at)}</span>
+                <div className="create-channel-bar">
+                  <button className="create-channel-btn" onClick={()=>setShowCreateChannel(true)}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:18,height:18}}>
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Nouveau canal
+                  </button>
                 </div>
-              ))}
-              <div ref={chMsgEndRef}/>
-            </div>
-            <form className="input-row" onSubmit={sendChannelMessage}>
-              <input value={channelInput} onChange={e=>setChannelInput(e.target.value)} placeholder="Répondre…" autoComplete="off"/>
-              <button type="submit" className="send-btn" disabled={!channelInput.trim()}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* ── MOMENTS ── */}
-        {view==='moments' && (
-          <div className="pane">
-            <div className="messages">
-              {moments.length===0 && (
-                <div className="empty"><div className="empty-icon">🌙</div><p>Notez vos moments précieux ici</p></div>
-              )}
-              {moments.map(m=>(
-                <div key={m.id} className="moment-card">
-                  <button className="moment-delete" onClick={()=>deleteMoment(m.id)} title="Supprimer">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+              </div>
+            ) : (
+              <div className="pane">
+                <div className="messages">
+                  {channelMessages.length===0 && (
+                    <div className="empty">
+                      <div className="empty-icon">{activeChannel.theme_icon}</div>
+                      <p>Commencez la discussion !</p>
+                    </div>
+                  )}
+                  {channelMessages.map(msg=>(
+                    <div key={msg.id} className={`msg-wrap ${isMe(msg.sender)?'mine':'hers'}`}>
+                      <div className="bubble"><p>{msg.text}</p></div>
+                      <span className="meta">{shortName(msg.sender)} · {fmt(msg.created_at)}</span>
+                    </div>
+                  ))}
+                  <div ref={chMsgEndRef}/>
+                </div>
+                <form className="input-row" onSubmit={sendChannelMessage}>
+                  <input value={channelInput} onChange={e=>setChannelInput(e.target.value)} placeholder="Répondre…" autoComplete="off"/>
+                  <button type="submit" className="send-btn" disabled={!channelInput.trim()}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
                     </svg>
                   </button>
-                  <p>{m.text}</p>
-                  <span className="meta">{shortName(m.author)} · {fmtDate(m.created_at)}</span>
-                </div>
-              ))}
-            </div>
-            <form className="input-row" onSubmit={addMoment}>
-              <input value={momentInput} onChange={e=>setMomentInput(e.target.value)} placeholder="Un souvenir, une pensée…" autoComplete="off"/>
-              <button type="submit" className="send-btn" disabled={!momentInput.trim()}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-              </button>
-            </form>
+                </form>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* ── MOMENTS ── */}
+          <div className="swipe-pane pane-moments">
+            <div className="pane">
+              <div className="messages">
+                {moments.length===0 && (
+                  <div className="empty"><div className="empty-icon">🌙</div><p>Notez vos moments précieux ici</p></div>
+                )}
+                {moments.map(m=>(
+                  <div key={m.id} className="moment-card">
+                    <button className="moment-delete" onClick={()=>deleteMoment(m.id)} title="Supprimer">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+                      </svg>
+                    </button>
+                    <p>{m.text}</p>
+                    <span className="meta">{shortName(m.author)} · {fmtDate(m.created_at)}</span>
+                  </div>
+                ))}
+              </div>
+              <form className="input-row" onSubmit={addMoment}>
+                <input value={momentInput} onChange={e=>setMomentInput(e.target.value)} placeholder="Un souvenir, une pensée…" autoComplete="off"/>
+                <button type="submit" className="send-btn" disabled={!momentInput.trim()}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </div>
+
+        </div>
       </main>
 
       {/* Nav */}
       <nav className="nav">
-        <button className={view==='chat'?'active':''} onClick={()=>{setView('chat');setActiveChannel(null)}}>
+        <button className={`tab-chat ${view==='chat'?'active':''}`} onClick={()=>{setView('chat');setActiveChannel(null)}}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
           <span>Chat</span>
         </button>
-        <button className={view==='channels'?'active':''} onClick={()=>setView('channels')}>
+        <button className={`tab-channels ${view==='channels'?'active':''}`} onClick={()=>setView('channels')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             <line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/>
           </svg>
           <span>Canaux</span>
         </button>
-        <button className={view==='moments'?'active':''} onClick={()=>setView('moments')}>
+        <button className={`tab-moments ${view==='moments'?'active':''}`} onClick={()=>setView('moments')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
