@@ -5,7 +5,7 @@ precacheAndRoute(self.__WB_MANIFEST)
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))
 
-// 🔥 FIX iOS
+// 🔔 PUSH (ULTRA COMPATIBLE iOS)
 self.addEventListener('push', e => {
   let data = {}
 
@@ -17,27 +17,32 @@ self.addEventListener('push', e => {
 
   const title = data.title || 'À Deux'
   const body  = data.body  || 'Nouveau message'
+  const url   = data.url   || 'https://TON-DOMAINE.com/love/'
 
   e.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: '/love/icon-192.png'
+      icon: '/love/icon-192.png',
+      data: { url } // 🔥 IMPORTANT pour clic
     })
   )
 })
 
-// clic notif
+// 👆 CLIC NOTIF (FIX PAGE BLEUE)
 self.addEventListener('notificationclick', e => {
   e.notification.close()
 
-  const url = '/love/'
+  const target = e.notification.data?.url || 'https://TON-DOMAINE.com/love/'
 
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(clients => {
-        const existing = clients.find(c => c.url.includes('/love/'))
-        if (existing) return existing.focus()
-        return self.clients.openWindow(url)
+        for (const client of clients) {
+          if (client.url.includes('/love/')) {
+            return client.focus()
+          }
+        }
+        return self.clients.openWindow(target)
       })
   )
 })
