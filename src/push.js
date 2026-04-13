@@ -62,7 +62,8 @@ export async function registerPush(userName) {
 // ── Supprime la souscription (logout) ──
 export async function unregisterPush() {
   try {
-    const reg = await navigator.serviceWorker.getRegistration('/sw.js')
+    // APRÈS
+    const reg = await navigator.serviceWorker.register('/love/sw.js', { scope: '/love/' })
     if (!reg) return
     const sub = await reg.pushManager.getSubscription()
     if (!sub) return
