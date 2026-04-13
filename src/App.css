@@ -450,3 +450,55 @@ input, textarea, select {
 .ai-badge { color:var(--gold); font-size:0.75rem; margin-top:13px; flex-shrink:0; }
 .dots     { letter-spacing:5px; color:var(--dim); animation:pulse 1.2s infinite; }
 @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+
+/* ══════════════════════════════
+   TOAST IN-APP — style iMessage
+══════════════════════════════ */
+.toast-wrapper {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex; justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 0;
+  z-index: 500;
+  pointer-events: none;
+  animation: toastIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-100%) scale(0.92); }
+  to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+.toast {
+  pointer-events: all;
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 20px;
+  padding: 10px 14px 10px 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10);
+  max-width: 360px; width: 100%;
+  cursor: pointer;
+}
+.toast-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, #1a3a5c, #0d2238);
+  color: #6eb5c9;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1rem; font-weight: 400;
+}
+.toast-content {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.toast-name {
+  font-size: 0.75rem; font-weight: 600;
+  color: #111; letter-spacing: 0.01em;
+}
+.toast-text {
+  font-size: 0.82rem; color: #444;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.toast-chevron {
+  font-size: 1.2rem; color: #aaa; flex-shrink: 0; margin-left: 2px;
+}

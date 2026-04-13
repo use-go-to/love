@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import { askGroq } from './groq'
 import './App.css'
+import { registerPush, unregisterPush } from './push'
 
 const DAVID = 'David Lecointre'
 const YAEL  = 'Yaël Lecointre'
@@ -237,6 +238,10 @@ export default function App() {
   const [confirmClear, setConfirmClear]       = useState(null)
   const [confirmDeleteChannel, setConfirmDeleteChannel] = useState(null)
 
+  // ── Toast in-app (style iMessage) ──
+  const [toast, setToast] = useState(null)  // { sender, text }
+  const toastTimer = useRef(null)
+
   // ── iOS keyboard layout — ref DOM directe (pas de state = pas de re-render = instantané) ──
   const appRef = useRef(null)
 
@@ -293,12 +298,27 @@ export default function App() {
     }
   }, [])
 
-  // ── PWA ──
+  // ── PWA install banner ──
   useEffect(()=>{
     const h=(e)=>{e.preventDefault();setInstallPrompt(e);setShowInstall(true)}
     window.addEventListener('beforeinstallprompt',h)
     return ()=>window.removeEventListener('beforeinstallprompt',h)
   },[])
+
+  // ── Enregistrement push au login ──
+  useEffect(()=>{
+    if(!user) return
+    // Petit délai pour ne pas bloquer le rendu initial
+    const t = setTimeout(()=>registerPush(user), 1500)
+    return ()=>clearTimeout(t)
+  },[user])
+
+  // ── Toast in-app : affiche quand message reçu hors onglet chat ──
+  function showToast(sender, text) {
+    if(toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ sender, text })
+    toastTimer.current = setTimeout(()=>setToast(null), 4000)
+  }
 
   async function handleInstall() {
     if(!installPrompt) return
@@ -312,7 +332,13 @@ export default function App() {
     if(!user) return
     loadMessages(); loadMoments(); loadChannels()
     const ch1=supabase.channel('msgs')
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'channel=eq.main'},p=>setMessages(prev=>[...prev,p.new]))
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'channel=eq.main'},p=>{
+        setMessages(prev=>[...prev,p.new])
+        // Toast si expéditeur != moi et pas sur l'onglet chat
+        if(p.new.sender !== user) {
+          setView(v=>{ if(v!=='chat') showToast(p.new.sender, p.new.text); return v })
+        }
+      })
       .subscribe()
     const ch2=supabase.channel('anims')
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'animations'},p=>addFloat(p.new.type))
@@ -366,7 +392,11 @@ export default function App() {
   }
 
   function handleSelect(name) { localStorage.setItem('adeux_user',name); setUser(name) }
-  function handleLogout() { localStorage.removeItem('adeux_user'); setUser(null); setMessages([]); setMoments([]); setChannels([]); setActiveChannel(null) }
+  function handleLogout() {
+    unregisterPush()
+    localStorage.removeItem('adeux_user')
+    setUser(null); setMessages([]); setMoments([]); setChannels([]); setActiveChannel(null)
+  }
 
   async function sendMessage(e) {
     e.preventDefault(); if(!input.trim()) return
@@ -422,6 +452,8 @@ export default function App() {
 
   if(!user) return <LoginScreen onSelect={handleSelect}/>
 
+  const shortSender = s => s === 'David Lecointre' ? 'David' : 'Yaël'
+
   return (
     <div
       ref={appRef}
@@ -440,6 +472,20 @@ export default function App() {
       onClick={()=>emojiPicker&&setEmojiPicker(false)}
     >
       <FloatLayer floats={floats}/>
+
+      {/* ── Toast iMessage in-app ── */}
+      {toast && (
+        <div className="toast-wrapper" onClick={()=>{setToast(null);setView('chat')}}>
+          <div className="toast">
+            <div className="toast-avatar">{toast.sender===DAVID?'D':'Y'}</div>
+            <div className="toast-content">
+              <span className="toast-name">{shortSender(toast.sender)}</span>
+              <span className="toast-text">{toast.text.length>60?toast.text.slice(0,57)+'…':toast.text}</span>
+            </div>
+            <div className="toast-chevron">›</div>
+          </div>
+        </div>
+      )}
 
       {confirmClear && <ConfirmDialog message="Effacer tous les messages ?" onConfirm={()=>clearMessages(confirmClear)} onCancel={()=>setConfirmClear(null)}/>}
       {confirmDeleteChannel && <ConfirmDialog message="Supprimer ce canal et tous ses messages ?" onConfirm={()=>deleteChannel(confirmDeleteChannel)} onCancel={()=>setConfirmDeleteChannel(null)}/>}
